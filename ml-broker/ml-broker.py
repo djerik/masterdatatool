@@ -2,15 +2,11 @@ from pickle import FALSE
 import serial
 import threading
 import queue
-import binascii
-import sys
 import signal
 import os
 import time
 import redis
 from textwrap import wrap
-
-from const import *
 
 r = redis.StrictRedis(host='localhost', port=6379, db=0)
 
@@ -28,24 +24,9 @@ readEOT = False
 exitf = False
 wdflag = False
 pid = ""
+tgheader = False
 
-def _dictsanitize(d, s):
-    result = d.get(s)
-    if result is None:
-        result = "UNKNOWN (type=" + _hexbyte(s) + ")"
-    return str(result)
-
-def _hexbyte(byte):
-    resultstr = hex(byte)
-    if byte < 16:
-        resultstr = resultstr[:2] + "0" + resultstr[2]
-    return resultstr
-
-
-def _hexword(byte1, byte2):
-    resultstr = _hexbyte(byte2)
-    resultstr = _hexbyte(byte1) + resultstr[2:]
-    return resultstr
+ml_src_type_list = ['c0', 'c1', 'c2', '80', '81', '82', '83', 'f0']
 
 
 def send_raw_hex_data_mark(port, baudrate, hex_data):
@@ -53,24 +34,16 @@ def send_raw_hex_data_mark(port, baudrate, hex_data):
     ser.baudrate = 19200
     ser.reset_output_buffer()
 
-    # Convert hex string to bytes
     data_bytes = bytes.fromhex(hex_data)
-    # print(data_bytes)
-    # Send the data
     ser.write(data_bytes)
-    # print("YES")
 
 def send_raw_hex_data_space(port, baudrate, hex_data):
     ser = serial.Serial(port, baudrate, parity=serial.PARITY_SPACE)
     ser.baudrate = 19200
     ser.reset_output_buffer()
 
-    # Convert hex string to bytes
     data_bytes = bytes.fromhex(hex_data)
-    # print(data_bytes)
-    # Send the data
     ser.write(data_bytes)
-    # print("YES")
 
 def sendcmd(cmd):
     i=0
@@ -87,7 +60,6 @@ def sendcmd(cmd):
 
     precmd = ""
     maincmd = ""
-    postcmd = ""
 
     i=0
     for data in cmd:
@@ -123,8 +95,6 @@ def lookupSourceDest(input):
         return ("MLGW")
     else:
         return ("UNKNOWN")
-    
-
 
 def printTelegram():
     global telegram
@@ -133,15 +103,9 @@ def printTelegram():
     telegram = []
     print("")
 
-
 def publishTelegram(telegram):
     print("published")
     r.publish('link:ml:receive', ''.join(telegram))
-
-
-
-
-tgheader = False
 
 def signal_handler(sig, frame):
     global exitf
@@ -156,10 +120,9 @@ def read_serial(baud_rate, data_queue, send_queue):
                 send = send_queue.get()
                 send = wrap(send, 2)
                 print("SENDING")
-                #print(send)
                 sendcmd(send)
             else:
-                data = ser.read(1)  # Adjust the number of bytes to read
+                data = ser.read(1)
                 if len(data.hex()) > 1:
                     data_queue.put(data.hex())
     except KeyboardInterrupt:
@@ -193,8 +156,6 @@ def process_data():
     global readEOT
     global wdflag
 
-
-
     if len(telegram) == 1:
         if telegram[0] == "00":
             print("ignoring - 00 is no valid start")
@@ -222,20 +183,14 @@ def process_data():
         print("telegram too long - restart")
         telegram = []
         return
-
-
-    #print(data)
+    
     if readEOT == False:
         lastdata = data
         chksumhexstring = str(hex(chksum))
-        #print(chksumhexstring)
         if len(chksumhexstring) > 2:
             chktxt = chksumhexstring[-2:]
-            #print("chk: "+chktxt)
-        
-        #print("CHK INT: " + str(chksum) + " CHK HEX: " + str(hex(chksum)) + " DATA: " + data)
+
         if chktxt == data:
-            #print("CHKSUM MATCH - EOT")
             readEOT = True
 
         chksum = chksum + int(data,16)
@@ -261,7 +216,7 @@ def checkSend(data_queue, send_queue):
             data = message['data']
             datastr = data.decode("utf-8")
             send_queue.put(datastr)
-            # Process the received data
+
 
 
 print(os.getpid())

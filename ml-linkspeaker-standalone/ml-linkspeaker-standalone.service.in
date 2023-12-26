@@ -1,0 +1,15 @@
+[Unit]
+Description=ML linkspeaker standalone
+Wants=network.target
+After=network.target
+After=redis.service
+
+[Service]
+Type=simple
+RestartSec=1s
+Restart=always
+ExecStart=python3 /opt/ml-tools/ml-linkspeaker-standalone/ml-linkspeaker-standalone.py
+WorkingDirectory=/opt/ml-tools/ml-linkspeaker-standalone
+
+[Install]
+WantedBy=multi-user.target
