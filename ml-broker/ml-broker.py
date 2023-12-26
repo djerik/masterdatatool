@@ -246,7 +246,7 @@ while not exitf:
         #print(data)
         telegram.append(data)
         process_data()
-        time.sleep(0.001)
+    time.sleep(0.001)
 
 print("Program has exited.")
 os.system("kill " +str(pid))
