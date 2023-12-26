@@ -26,7 +26,8 @@ From example you can also use the redis command line interface for directly inte
 `redis-cli PUBLISH link:ml:transmit c0c1010a0047002005020001ffff94`<br>
 `redis-cli SUBSCRIBE link:ml:receive`
 
-The first command will send a virtual remote button press from audio master to video master. The second one will print out any incomming ML messages in hex format.
+The first command will send a virtual remote button press from audio master to video master. The second one will print out any incomming ML messages in hex format.<br>
+Do not include the telegram checksum or the final 0x00 byte. They are added automatically.
 
 The ML serial communication consists of "telegrams" with a - nowadays - very uncommon parity bit. First and last byte is sent with a MARK parity bit while the other are sent with SPACE. The MARK partiy will notify any receiver of the start and the end of a specific telegram.<br>
 As there is no direct hardware support for that on any off-the-shelf chips we have to hack our way around it by using software. <br>
