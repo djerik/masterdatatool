@@ -25,6 +25,7 @@ exitf = False
 wdflag = False
 pid = ""
 tgheader = False
+data = ""
 
 ml_src_type_list = ['c0', 'c1', 'c2', '80', '81', '82', '83', 'f0']
 
@@ -155,6 +156,7 @@ def process_data():
     global chktxt
     global readEOT
     global wdflag
+    global data
 
     if len(telegram) == 1:
         if telegram[0] == "00":
@@ -244,6 +246,7 @@ while not exitf:
         #print(data)
         telegram.append(data)
         process_data()
+        time.sleep(0.001)
 
 print("Program has exited.")
 os.system("kill " +str(pid))
