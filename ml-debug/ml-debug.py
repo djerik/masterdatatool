@@ -8,6 +8,7 @@ import signal
 import os
 import redis
 from textwrap import wrap
+from datetime import datetime
 
 from const import *
 
@@ -31,7 +32,6 @@ ser.ReadBufferSize = 32768
 #ser.open()
 #ser.ReadBufferSize = 32768
 
-telegram = []
 chksum = 0
 lastchksum = ""
 chktxt = ""
@@ -78,15 +78,13 @@ def lookupSourceDest(input):
     
 
 
-def printTelegram():
-    global telegram
+def printTelegram(telegram):
     print("##########################################")
     print("##########################################")
     print("##########################################")
     print("NEW TELEGRAM:")
     print(telegram)
     decodeTelegram(telegram)
-    telegram = []
     print("")
 
 
@@ -228,22 +226,43 @@ def decodeTelegram(telegram):
     print("")
 
 
+def decode_outgoing_telegram():
 
-tgheader = False
+    r = redis.StrictRedis(host='localhost', port=6379, db=0)
+    pubsub = r.pubsub()
+    pubsub.subscribe('link:ml:transmit')
+
+    for message in pubsub.listen():
+        if message['type'] == 'message':
+            data = message['data']
+            datastr = data.decode("utf-8")
+            current_time = datetime.now()
+            timestamp = current_time.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+            print("### OUTGOING ### " + timestamp)
+            printTelegram(wrap(datastr, 2))
 
 
-# Connect to Redis
-r = redis.StrictRedis(host='localhost', port=6379, db=0)
+def decode_incoming_telegram():
 
-# Subscribe to a channel
-pubsub = r.pubsub()
-pubsub.subscribe('beolink:ml:receive')
+    r = redis.StrictRedis(host='localhost', port=6379, db=0)
+    pubsub = r.pubsub()
+    pubsub.subscribe('link:ml:receive')
 
-for message in pubsub.listen():
-    if message['type'] == 'message':
-        data = message['data']
-        datastr = data.decode("utf-8")
-        datalist = wrap(datastr, 2)
-        telegram = datalist
-        printTelegram()
-        # Process the received data
+    for message in pubsub.listen():
+        if message['type'] == 'message':
+            data = message['data']
+            datastr = data.decode("utf-8")
+            current_time = datetime.now()
+            timestamp = current_time.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+            print("### INCOMING ### " + timestamp)
+            printTelegram(wrap(datastr, 2))
+
+
+
+if __name__ == "__main__":
+
+    decode_receive_thread = threading.Thread(target=decode_incoming_telegram)
+    decode_receive_thread.start()
+
+    decode_transmit_thread = threading.Thread(target=decode_outgoing_telegram)
+    decode_transmit_thread.start()
