@@ -145,7 +145,7 @@ def handleTelegram(tg):
     # we are simulating an AUDIO MASTER at address c1
     # is the telegram for us? If yes, proceed
     print(tg)
-    if tg[0] in ["c0", "c1", "80"]:
+    if tg[0] in ["c1", "80"]:
         # telegram to audio master
         # we have to store the from address
         # 03 = BL3500 / 06 = BL2000 / probably nodes can also be assigned a new address
