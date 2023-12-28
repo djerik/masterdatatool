@@ -17,13 +17,14 @@ import subprocess
 import threading
 import os
 from datetime import datetime
+import copy
 
 # var we will use for storing the client address we are talking to. Default to 0x80 for "ALL" 
 tgSource = "80"
 
 def exit_handler(a, b):
     print('app terminated - sending global off')
-    r.publish('link:ml:transmit', ''.join(globalOFF))
+    #r.publish('link:ml:transmit', ''.join(globalOFF))
     os._exit(0)
 
 
@@ -38,11 +39,14 @@ SCtoALL_displSRC01 = ['83', 'c2', '01', '2c', '00', 'a1', '00', '06', '11', '00'
 SCtoALL_statusInfo02 = ['83', 'c2', '01', '14', '00', 'a1', '00', '87', '1a', '04', 'a1', '01', '00', '00', '1f', 'be', '01', '00', '00', '00', 'ff', '02', '01', '00', '03', '01', '01', '01', '03', '00', '02', '00', '00', '00', '00', '01']
 SCtoAM_trackinfolong03 = ['c1', 'c2', '01', '14', '00', '00', '00', '82', '0a', '01', '06', 'a1', '00', '02', '00', '00', '00', '00', '00', '01']
 SCtoALL_displSRC02 = ['83', 'c2', '01', '2c', '00', 'a1', '00', '06', '11', '00', '03', '01', '01', '00', '00', '4e', '2e', '52', '41', '44', '49', '4f', '20', '20', '20', '20', '20']
-SCtoALL_exInfo01 = ['83', 'c2', '01', '2c', '00', 'a1', '00', '0b', '15', '00', '04', '00', '03', '01', 'a1', '00', '00', '00', '03', 'e7', '00', '01', '00', '01', '41', '69', '72', '50', '6c', '61', '79' ] # was 13 is 7
+SCtoALL_exInfo01 = ['83', 'c2', '01', '2c', '00', 'a1', '00', '0b', '15', '00', '04', '00', '03', '01', 'a1', '00', '00', '00', '03', 'e7', '00', '01', '00', '01', '41', '69', '72', '50', '6c', '61', '79' ] # "AirPlay"
+SCtoALL_exInfo01_raw = ['83', 'c2', '01', '2c', '00', 'a1', '00', '0b', '15', '00', '04', '00', '03', '01', 'a1', '00', '00', '00', '03', 'e7', '00', '01', '00', '01']
 SCtoALL_exInfo02 = ['83', 'c2', '01', '2c', '00', 'a1', '00', '0b', '0e', '00', '02', '00', '03', '01', 'a1', '00', '00', '00', '03', 'e7', '00', '01', '00', '00']
-SCtoALL_exInfo03 = ['83', 'c2', '01', '2c', '00', 'a1', '00', '0b', '1c', '00', '03', '00', '03', '01', 'a1', '00', '00', '00', '03', 'e7', '00', '01', '00', '01', '4d', '61', '73', '74', '65', '72', '44', '61', '74', '61', '54', '6f', '6f', '6c' ] #was 11 is 14
+SCtoALL_exInfo03 =     ['83', 'c2', '01', '2c', '00', 'a1', '00', '0b', '1c', '00', '03', '00', '03', '01', 'a1', '00', '00', '00', '03', 'e7', '00', '01', '00', '01', '4d', '61', '73', '74', '65', '72', '44', '61', '74', '61', '54', '6f', '6f', '6c' ] # "MasterDataTool"
+SCtoALL_exInfo03_raw = ['83', 'c2', '01', '2c', '00', 'a1', '00', '0b', '1c', '00', '03', '00', '03', '01', 'a1', '00', '00', '00', '03', 'e7', '00', '01', '00', '01']
 
 SCtoAM_NRadio = ['c1', 'c0', '01', '0a', '00', '00', '00', '20', '05', '02', '00', '01', '00', '6f', '93']
+SCtoVM_NRadio = ['c0', 'c1', '01', '0a', '00', '47', '00', '20', '05', '02', '00', '01', 'ff', 'ff', '93']
 
 # some hardcoded dbus commands for controlling shairport-sync
 osNEXTcmd = "dbus-send --system --print-reply --type=method_call --dest=org.gnome.ShairportSync '/org/gnome/ShairportSync' org.gnome.ShairportSync.RemoteControl.Next"
@@ -52,11 +56,15 @@ osPLAYcmd = "dbus-send --system --print-reply --type=method_call --dest=org.gnom
 
 def radioWake():
     global tgSource
-    # we are sending a global remote command for the "Radio" button
+    # we are sending a global remote command for the "N.Radio" button
     #AMtoBL_Radio[0] = tgSource
     #AMtoBL_Radio[0] = "80"
     print("AM to BL - start radio!")
     r.publish('link:ml:transmit', ''.join(SCtoAM_NRadio))
+
+    # when we are in a VM -> AM -> SC setup we also need to send it to VM
+    time.sleep(0.5)
+    r.publish('link:ml:transmit', ''.join(SCtoVM_NRadio))
 
 
 def handleAudio():
@@ -100,6 +108,7 @@ def handleAudio():
                     RUNNING = False
                     print("CLOSED - global off")
                     r.publish('link:ml:transmit', ''.join(globalOFF))
+                    # sometimes we need to send it twice to be sure
                     time.sleep(1)
                     r.publish('link:ml:transmit', ''.join(globalOFF))
         except subprocess.CalledProcessError as e:
@@ -108,7 +117,42 @@ def handleAudio():
         time.sleep(1)
 
 
+def updateStatusName(name):
+    name = name.replace(" ", "")
+    hex_values = [hex(ord(char))[2:] for char in name]
+    nameUdateCmd = copy.copy(SCtoALL_exInfo01_raw)
+    for byte in hex_values:
+        nameUdateCmd.append(byte)
+    nameUdateCmd[8] = hex(len(hex_values) + 14)[2:]
+    print(nameUdateCmd)
+    r.publish('link:ml:transmit', ''.join(nameUdateCmd))
 
+def updateCountryName(name):
+    name = name.replace(" ", "")
+    hex_values = [hex(ord(char))[2:] for char in name]
+    nameUdateCmd = copy.copy(SCtoALL_exInfo03_raw)
+    for byte in hex_values:
+        nameUdateCmd.append(byte)
+    nameUdateCmd[8] = hex(len(hex_values) + 14)[2:]
+    r.publish('link:ml:transmit', ''.join(nameUdateCmd))
+
+def handleMeta():
+    time.sleep(3)
+    pubsub = r.pubsub()
+    pubsub.subscribe('link:ml:transmit:meta:title')
+
+    for message in pubsub.listen():
+        if message['type'] == 'message':
+            data = message['data']
+            datastr = data.decode("utf-8")
+            print("META: " + datastr )
+            #r.publish('link:ml:transmit', ''.join((SCtoALL_displSRC02)))
+            #time.sleep(0.5)
+            updateStatusName(datastr)
+            #time.sleep(0.5)
+            #r.publish('link:ml:transmit', ''.join((SCtoALL_exInfo02)))
+            #time.sleep(0.5)
+            #updateCountryName("MasterDataTool")
 
 def handleTelegram(tg):
 
@@ -146,11 +190,11 @@ def handleTelegram(tg):
                     time.sleep(0.5)
                     r.publish('link:ml:transmit', ''.join((SCtoALL_displSRC02)))
                     time.sleep(0.5)
-                    r.publish('link:ml:transmit', ''.join((SCtoALL_exInfo01)))
+                    updateStatusName("Connecting")
                     time.sleep(0.5)
                     r.publish('link:ml:transmit', ''.join((SCtoALL_exInfo02)))
                     time.sleep(0.5)
-                    r.publish('link:ml:transmit', ''.join((SCtoALL_exInfo03)))
+                    updateCountryName("MasterDataTool")
 
             if tg[7] == "45":
                 # telegram is a request for a GOTO-SOURCE command
@@ -227,6 +271,10 @@ pubsub.subscribe('link:ml:receive')
 audio_thread = threading.Thread(target=handleAudio)
 audio_thread.start()
 
+# once we detect that our system plays an audio stream we are going to send a timer "playback started" command to enable the node.
+meta1_thread = threading.Thread(target=handleMeta)
+meta1_thread.start()
+
 # set gpios to output (super ugly, better use libgpiod for portability)
 os.system("raspi-gpio set 23 op")
 os.system("raspi-gpio set 25 op")
@@ -235,8 +283,6 @@ os.system("raspi-gpio set 25 op")
 os.system("raspi-gpio set 23 dl")
 # gpio 25 is master/slave select. setting this low provides +/- 0.25V to the data pins
 os.system("raspi-gpio set 25 dh")
-
-time.sleep(1)
 
 for message in pubsub.listen():
     if message['type'] == 'message':
