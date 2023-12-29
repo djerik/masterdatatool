@@ -18,6 +18,7 @@ import threading
 import os
 from datetime import datetime
 import copy
+import re
 
 # var we will use for storing the client address we are talking to. Default to 0x80 for "ALL" 
 tgSource = "80"
@@ -53,6 +54,58 @@ osNEXTcmd = "dbus-send --system --print-reply --type=method_call --dest=org.gnom
 osPREVcmd = "dbus-send --system --print-reply --type=method_call --dest=org.gnome.ShairportSync '/org/gnome/ShairportSync' org.gnome.ShairportSync.RemoteControl.Previous"
 osRELEASEcmd = "dbus-send --system --print-reply --type=method_call --dest=org.gnome.ShairportSync '/org/gnome/ShairportSync' org.gnome.ShairportSync.RemoteControl.Pause"
 osPLAYcmd = "dbus-send --system --print-reply --type=method_call --dest=org.gnome.ShairportSync '/org/gnome/ShairportSync' org.gnome.ShairportSync.RemoteControl.Play"
+
+album = ""
+title = ""
+
+def getMetadata():
+
+    global album
+    global title
+
+    # Run the dbus-send command to get metadata
+    dbus_command = "dbus-send --print-reply --system --dest=org.gnome.ShairportSync /org/gnome/ShairportSync org.freedesktop.DBus.Properties.Get string:org.gnome.ShairportSync.RemoteControl string:Metadata"
+    result = subprocess.run(dbus_command, shell=True, capture_output=True, text=True)
+
+    # Check if the command was successful
+    if result.returncode == 0:
+        # Extract the D-Bus output
+        dbus_output = result.stdout
+
+        # Define regular expression patterns to extract xesam:title and xesam:album values
+        title_pattern = re.compile(r'string "xesam:title"\s+variant\s+string "(.*?)"')
+        album_pattern = re.compile(r'string "xesam:album"\s+variant\s+string "(.*?)"')
+
+        # Use the patterns to find matches in the D-Bus output
+        title_match = title_pattern.search(dbus_output)
+        album_match = album_pattern.search(dbus_output)
+
+        # Check if matches are found and extract the values
+        title_temp = title_match.group(1) if title_match else None
+        album_temp = album_match.group(1) if album_match else None
+
+        if title_temp == None:
+                title_temp = "AirPlay"
+        
+        if album_temp == None:
+                album_temp = "MasterDataTool"
+
+        if title_temp != title:
+            time.sleep(0.5)
+            print("Title:", title_temp)
+            updateStatusName(title_temp)
+            time.sleep(0.5)
+            title = title_temp
+        
+        if album_temp != album:
+            time.sleep(0.5)
+            print("Album:", album_temp)
+            updateCountryName(album_temp)
+            time.sleep(0.5)
+            album = album_temp
+        
+    else:
+        print(f"Error running dbus-send: {result.stderr}")
 
 def radioWake():
     global tgSource
@@ -116,9 +169,20 @@ def handleAudio():
             return None
         time.sleep(1)
 
+def filter_string(input_string):
+    # Define a regular expression pattern that allows letters, digits, '.'
+    pattern = re.compile(r'[^A-Za-z0-9.\- ]')
+    
+    # Use the pattern to filter out unwanted characters
+    filtered_string = re.sub(pattern, '', input_string)
+    # Limit the length to a maximum of 15 characters
+    filtered_string_ret = copy.copy(filtered_string[:15])
+    
+    return filtered_string_ret
 
 def updateStatusName(name):
-    name = name.replace(" ", "")
+    #name = name.replace(" ", "")
+    name = filter_string(name)
     hex_values = [hex(ord(char))[2:] for char in name]
     nameUdateCmd = copy.copy(SCtoALL_exInfo01_raw)
     for byte in hex_values:
@@ -129,6 +193,7 @@ def updateStatusName(name):
 
 def updateCountryName(name):
     name = name.replace(" ", "")
+    name = filter_string(name)
     hex_values = [hex(ord(char))[2:] for char in name]
     nameUdateCmd = copy.copy(SCtoALL_exInfo03_raw)
     for byte in hex_values:
@@ -137,22 +202,11 @@ def updateCountryName(name):
     r.publish('link:ml:transmit', ''.join(nameUdateCmd))
 
 def handleMeta():
-    time.sleep(3)
-    pubsub = r.pubsub()
-    pubsub.subscribe('link:ml:transmit:meta:title')
+    time.sleep(5)
+    while True:
+        getMetadata()
+        time.sleep(1)
 
-    for message in pubsub.listen():
-        if message['type'] == 'message':
-            data = message['data']
-            datastr = data.decode("utf-8")
-            print("META: " + datastr )
-            #r.publish('link:ml:transmit', ''.join((SCtoALL_displSRC02)))
-            #time.sleep(0.5)
-            updateStatusName(datastr)
-            #time.sleep(0.5)
-            #r.publish('link:ml:transmit', ''.join((SCtoALL_exInfo02)))
-            #time.sleep(0.5)
-            #updateCountryName("MasterDataTool")
 
 def handleTelegram(tg):
 
