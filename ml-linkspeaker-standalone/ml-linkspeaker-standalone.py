@@ -113,6 +113,9 @@ def handleAudio():
 
                     # alternatively we can send a remote key for switching on 
                     radioWake()
+                    # let's send a second time to be sure
+                    time.sleep(3)
+                    radioWake()
 
                     # if we want we could also send commands for regulating the initial volume on the node if desired
                     # for this we are sending virtual remote keys
@@ -121,11 +124,11 @@ def handleAudio():
                     time.sleep(6)
 
                     AMtoBL_volUp[0] = tgSource
-                    for i in range(15):
-                        print("vol + 1")
-                        r.publish('link:ml:transmit', ''.join(AMtoBL_volUp))
+                    #for i in range(15):
+                    #    print("vol + 1")
+                    #    r.publish('link:ml:transmit', ''.join(AMtoBL_volUp))
                         # wait a bit until the message was transmitted sucessfully
-                        time.sleep(0.4)
+                    #    time.sleep(0.4)
             else:
                 if RUNNING == True:
                     RUNNING = False
@@ -244,6 +247,14 @@ def handleTelegram(tg):
                     os.system(osNEXTcmd)
                 if tg[11] == "1f":
                     # PREVIOUS
+                    print("PREV")
+                    os.system(osPREVcmd)
+                if tg[11] == "34":
+                    # WIND
+                    print("NEXT")
+                    os.system(osNEXTcmd)
+                if tg[11] == "32":
+                    # REWIND
                     print("PREV")
                     os.system(osPREVcmd)
             if tg[7] == "11":
