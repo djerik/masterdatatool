@@ -11,6 +11,9 @@ from datetime import datetime
 # var we will use for storing the client address we are talking to. Default to 0x80 for "ALL" 
 tgSource = "80"
 
+streamAlreadyRunning = False
+bufferMute = False
+
 def exit_handler(a, b):
     print('app terminated - sending global off')
     r.publish('link:ml:transmit', ''.join(globalOFF))
@@ -44,6 +47,17 @@ osNEXTcmd = "dbus-send --system --print-reply --type=method_call --dest=org.gnom
 osPREVcmd = "dbus-send --system --print-reply --type=method_call --dest=org.gnome.ShairportSync '/org/gnome/ShairportSync' org.gnome.ShairportSync.RemoteControl.Previous"
 osRELEASEcmd = "dbus-send --system --print-reply --type=method_call --dest=org.gnome.ShairportSync '/org/gnome/ShairportSync' org.gnome.ShairportSync.RemoteControl.Pause"
 osPLAYcmd = "dbus-send --system --print-reply --type=method_call --dest=org.gnome.ShairportSync '/org/gnome/ShairportSync' org.gnome.ShairportSync.RemoteControl.Play"
+
+def muteHanlder():
+    global bufferMute
+
+    while True:
+        if bufferMute:
+            os.system("amixer set Digital mute")
+            time.sleep(2.1)
+            os.system("amixer set Digital unmute")
+            bufferMute = False
+        time.sleep(0.2)
 
 def radioWake():
     global tgSource
@@ -96,6 +110,8 @@ def handleAudio():
     # interface hardcoded to hw:0,0 - change if required
     global tgSource
 
+    global streamAlreadyRunning
+
     # one second initial delay
     time.sleep(1)
 
@@ -108,30 +124,34 @@ def handleAudio():
                 if RUNNING == False:
                     RUNNING = True
 
-                    # node was off and we will enable it now by using the timer wake function 
-                    # timerWake()
+                    if not streamAlreadyRunning:
+                        streamAlreadyRunning = False
 
-                    # alternatively we can send a remote key for switching on 
-                    radioWake()
-                    # let's send a second time to be sure
-                    time.sleep(3)
-                    radioWake()
+                        # node was off and we will enable it now by using the timer wake function 
+                        # timerWake()
 
-                    # if we want we could also send commands for regulating the initial volume on the node if desired
-                    # for this we are sending virtual remote keys
-                    # following loop will send 15 "volume_up" commands - volume step size = two
-                    # but first we have to wait a bit until the node switched on properly
-                    time.sleep(6)
+                        # alternatively we can send a remote key for switching on 
+                        radioWake()
+                        # let's send a second time to be sure
+                        time.sleep(3)
+                        radioWake()
 
-                    AMtoBL_volUp[0] = tgSource
-                    #for i in range(15):
-                    #    print("vol + 1")
-                    #    r.publish('link:ml:transmit', ''.join(AMtoBL_volUp))
-                        # wait a bit until the message was transmitted sucessfully
-                    #    time.sleep(0.4)
+                        # if we want we could also send commands for regulating the initial volume on the node if desired
+                        # for this we are sending virtual remote keys
+                        # following loop will send 15 "volume_up" commands - volume step size = two
+                        # but first we have to wait a bit until the node switched on properly
+                        time.sleep(6)
+
+                        AMtoBL_volUp[0] = tgSource
+                        #for i in range(15):
+                        #    print("vol + 1")
+                        #    r.publish('link:ml:transmit', ''.join(AMtoBL_volUp))
+                            # wait a bit until the message was transmitted sucessfully
+                        #    time.sleep(0.4)
             else:
                 if RUNNING == True:
                     RUNNING = False
+                    streamAlreadyRunning = False
                     print("CLOSED - global off")
                     r.publish('link:ml:transmit', ''.join(globalOFF))
         except subprocess.CalledProcessError as e:
@@ -144,6 +164,8 @@ def handleAudio():
 
 def handleTelegram(tg):
 
+    global streamAlreadyRunning
+    global bufferMute
     global tgSource
     # we are simulating an AUDIO MASTER at address c1
     # is the telegram for us? If yes, proceed
@@ -204,6 +226,7 @@ def handleTelegram(tg):
                     r.publish('link:ml:transmit', ''.join((AMtoBL_respTrackInfoLongRadio)))
                     # let's start our playback
                     print("PLAY")
+                    streamAlreadyRunning = True
                     os.system(osPLAYcmd)
 
                 if tg[11] == "8d":
@@ -244,18 +267,28 @@ def handleTelegram(tg):
                 if tg[11] == "1e":
                     # NEXT
                     print("NEXT")
+                    # mute the audio for immediate feedback while the buffer drains
+                    bufferMute = True
                     os.system(osNEXTcmd)
                 if tg[11] == "1f":
                     # PREVIOUS
                     print("PREV")
+                    # mute the audio for immediate feedback while the buffer drains
+                    bufferMute = True
                     os.system(osPREVcmd)
                 if tg[11] == "34":
                     # WIND
+                    # some remotes have worn out NEXT / PREV buttons so also map wind buttons here
                     print("NEXT")
+                    # mute the audio for immediate feedback while the buffer drains
+                    bufferMute = True
                     os.system(osNEXTcmd)
                 if tg[11] == "32":
                     # REWIND
+                    # some remotes have worn out NEXT / PREV buttons so also map wind buttons here
                     print("PREV")
+                    # mute the audio for immediate feedback while the buffer drains
+                    bufferMute = True
                     os.system(osPREVcmd)
             if tg[7] == "11":
                 # RELEASE command usually sent when node is shutting down
@@ -277,6 +310,10 @@ audio_thread.start()
 # every 30 minutes are going to sync the clock of all connected nodes
 clock_thread = threading.Thread(target=syncClock)
 clock_thread.start()
+
+# when changing tracks locally mute the audio output for two seconds to provide an immediate audible feedback while the airplay buffer drains
+mute_thread = threading.Thread(target=muteHanlder)
+mute_thread.start()
 
 # set gpios to output (super ugly, better use libgpiod for portability)
 os.system("raspi-gpio set 23 op")
