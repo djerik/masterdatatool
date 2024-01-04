@@ -8,10 +8,9 @@ from textwrap import wrap
 
 r = redis.StrictRedis(host='localhost', port=6379, db=0)
 
-ser = serial.Serial('/dev/ttyUSB0', parity=serial.PARITY_ODD, timeout=0.05)
+ser = serial.Serial('/dev/ttyUSB0', parity=serial.PARITY_ODD, timeout=0.04)
 ser.baudrate = 19200
 ser.close()
-ser.baudrate = 19200
 ser.open()
 
 wd_cancle_flag = False
@@ -25,20 +24,21 @@ ml_src_type_list = ['c0', 'c1', 'c2', '80', '81', '82', '83', 'f0']
 
 def send_raw_hex_data_mark(port, baudrate, hex_data):
     global ser
+    ser.close()
+    ser.open()
     ser.parity = serial.PARITY_MARK
-    ser.reset_output_buffer()
 
     data_bytes = bytes.fromhex(hex_data)
     ser.write(data_bytes)
 
 def send_raw_hex_data_space(port, baudrate, hex_data):
     global ser
+    ser.close()
+    ser.open()
     ser.parity = serial.PARITY_SPACE
-    ser.reset_output_buffer()
 
     data_bytes = bytes.fromhex(hex_data)
     ser.write(data_bytes)
-    ser.close()
 
 def sendcmd(cmd):
     global ser
@@ -73,7 +73,6 @@ def sendcmd(cmd):
 
     send_raw_hex_data_mark('/dev/ttyUSB0', 19200, precmd)
     send_raw_hex_data_space('/dev/ttyUSB0', 19200, maincmd)
-    ser.open()
     send_raw_hex_data_mark('/dev/ttyUSB0', 19200, '00')
 
 def checkSend(data_queue, send_queue):
@@ -233,7 +232,7 @@ def handle_serial_receive(receive_queue, send_queue, incoming_data_event):
         # keep reading
         if not sending:
             data = ser.read(1)
-            if len(data.hex()) > 1:
+            if len(data.hex()) > 0:
                 # new byte incoming - let's put it in the receive queue
                 if not sending:
                     receive_queue.put(data.hex())
@@ -252,13 +251,13 @@ def handle_serial_transmit(receive_queue, send_queue, incoming_data_event):
         if not send_queue.empty():
             sending = True
             # let's give the serial interface some time for a time-out
-            time.sleep(0.1)
+            time.sleep(0.05)
             # something new in send_queue - let's send it
             send = send_queue.get()
             send = wrap(send, 2)
             sendcmd(send)
             # let's give the serial interface some time for a time-out
-            time.sleep(0.1)
+            time.sleep(0.05)
             sending = False
         time.sleep(0.2)
 

@@ -24,7 +24,7 @@ signal.signal(signal.SIGINT, exit_handler)
 signal.signal(signal.SIGTERM, exit_handler)
 
 # some pre-defined answers we will later just change the recipient address   
-globalOFF = ['80', '05', '01', '0a', '00', '00', '00', '11', '00', '01']
+globalOFF = ['80', 'c1', '01', '0a', '00', '00', '00', '11', '00', '01']
 AMtoBL_respAM = ['06', 'c1', '01', '14', '00', '00', '00', '04', '03', '04', '01', '02', '01']
 AMtoBL_respDistSrc = ['06', 'c1', '01', '14', '00', '00', '00', '08', '00', '04']
 AMtoBL_respLocalSrc = ['06', 'c1', '01', '14', '00', '00', '00', '30', '00', '04']
@@ -131,16 +131,15 @@ def handleAudio():
                         # timerWake()
 
                         # alternatively we can send a remote key for switching on 
-                        radioWake()
-                        # let's send a second time to be sure
-                        time.sleep(3)
+                        #os.system("raspi-gpio set 25 dh")
+                        #os.system("raspi-gpio set 25 dl")
                         radioWake()
 
                         # if we want we could also send commands for regulating the initial volume on the node if desired
                         # for this we are sending virtual remote keys
                         # following loop will send 15 "volume_up" commands - volume step size = two
                         # but first we have to wait a bit until the node switched on properly
-                        time.sleep(6)
+                        #time.sleep(6)
 
                         AMtoBL_volUp[0] = tgSource
                         #for i in range(15):
@@ -216,11 +215,11 @@ def handleTelegram(tg):
                     # first we have to send an broadcast answer
                     print("telegram is a RADIO request - send an answer")
                     r.publish('link:ml:transmit', ''.join((AMtoALL_respGotoRadio)))
-                    time.sleep(1)
+                    time.sleep(0.25)
                     # now we have to send an answer to the requesting node
                     AMtoBL_respGotoRadio[0] = tgSource
                     r.publish('link:ml:transmit', ''.join((AMtoBL_respGotoRadio)))
-                    time.sleep(1)
+                    time.sleep(0.25)
                     # finally we also have to send the new track / station info to the requesting node
                     AMtoBL_respTrackInfoLongRadio[0] = tgSource
                     r.publish('link:ml:transmit', ''.join((AMtoBL_respTrackInfoLongRadio)))
@@ -303,6 +302,15 @@ r = redis.StrictRedis(host='localhost', port=6379, db=0)
 pubsub = r.pubsub()
 pubsub.subscribe('link:ml:receive')
 
+# set gpios to output (super ugly, better use libgpiod for portability)
+os.system("raspi-gpio set 23 op")
+os.system("raspi-gpio set 25 op")
+
+# gpio 23 is ML POWER enable
+os.system("raspi-gpio set 23 dh")
+# gpio 25 is master/slave select. setting this low provides +/- 0.25V to the data pins
+os.system("raspi-gpio set 25 dl")
+
 # once we detect that our system plays an audio stream we are going to send a timer "playback started" command to enable the node.
 audio_thread = threading.Thread(target=handleAudio)
 audio_thread.start()
@@ -315,14 +323,6 @@ clock_thread.start()
 mute_thread = threading.Thread(target=muteHanlder)
 mute_thread.start()
 
-# set gpios to output (super ugly, better use libgpiod for portability)
-os.system("raspi-gpio set 23 op")
-os.system("raspi-gpio set 25 op")
-
-# gpio 23 is ML POWER enable
-os.system("raspi-gpio set 23 dh")
-# gpio 25 is master/slave select. setting this low provides +/- 0.25V to the data pins
-os.system("raspi-gpio set 25 dl")
 
 time.sleep(1)
 
