@@ -29,10 +29,9 @@ From example you can also use the redis command line interface for directly inte
 The first command will send a virtual remote button press from audio master to video master. The second one will print out any incomming ML messages in hex format.<br>
 Do not include the telegram checksum or the final 0x00 byte. They are added automatically.
 
-The ML serial communication consists of "telegrams" with a - nowadays - very uncommon parity bit. First and last byte is sent with a MARK parity bit while the other are sent with SPACE. The MARK partiy will notify any receiver of the start and the end of a specific telegram.<br>
+The ML serial communication consists of "telegrams" with a - nowadays - uncommon parity bit. First and last byte is sent with a MARK parity bit while the other are sent with SPACE. The MARK partiy will notify any receiver of the start and the end of a specific telegram.<br>
 As there is no direct hardware support for that on any off-the-shelf chips we have to hack our way around it by using software. <br>
-Receving telegrams is a bit wanky currently. The second last byte is a telegram checksum and we know roughtly how a message should start. So for every byte received we are adding it to a telegram array and calculate the checksum until it matches the actual byte received. Other techniques like header detection and a timeout will make it a bit more robust. Neverthless in general it cannot be considered a particular nice solution. <br> 
-Also this code for sure needs a little refactoring and clean-up in general - for now it works pretty stable and does not need any attention.
+Receving telegrams is implemented using some estimations. So far this is known to work pretty reliable. The second last byte is a telegram checksum and we know roughtly how a message should start. So for every byte received we are adding it to a telegram array and calculate the checksum until it matches the actual byte received. Other techniques like header detection and a timeout will make it a bit more robust.<br> 
 
 A running instance of ml-broker.py is a requirement for all other applications interacting with the ML bus. Under no circumstances other apps should directly interact with the serial interface. It always needs to go through this message broker.
 
