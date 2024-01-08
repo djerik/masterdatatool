@@ -23,6 +23,8 @@ import re
 # var we will use for storing the client address we are talking to. Default to 0x80 for "ALL" 
 tgSource = "80"
 
+bufferMute = False
+
 def exit_handler(a, b):
     print('app terminated - sending global off')
     #r.publish('link:ml:transmit', ''.join(globalOFF))
@@ -46,8 +48,9 @@ SCtoALL_exInfo02 = ['83', 'c2', '01', '2c', '00', 'a1', '00', '0b', '0e', '00', 
 SCtoALL_exInfo03 =     ['83', 'c2', '01', '2c', '00', 'a1', '00', '0b', '1c', '00', '03', '00', '03', '01', 'a1', '00', '00', '00', '03', 'e7', '00', '01', '00', '01', '4d', '61', '73', '74', '65', '72', '44', '61', '74', '61', '54', '6f', '6f', '6c' ] # "MasterDataTool"
 SCtoALL_exInfo03_raw = ['83', 'c2', '01', '2c', '00', 'a1', '00', '0b', '1c', '00', '03', '00', '03', '01', 'a1', '00', '00', '00', '03', 'e7', '00', '01', '00', '01']
 
-SCtoAM_NRadio = ['c1', 'c0', '01', '0a', '00', '00', '00', '20', '05', '02', '00', '01', '00', '6f', '93']
-SCtoVM_NRadio = ['c0', 'c1', '01', '0a', '00', '47', '00', '20', '05', '02', '00', '01', 'ff', 'ff', '93']
+SCtoAM_NRadio = ['c1', 'c2', '01', '0a', '00', '00', '00', '20', '05', '02', '00', '01', '00', '6f', '93']
+SCtoVM_NRadio = ['c0', 'c2', '01', '0a', '00', 'ff', '00', '20', '05', '02', '00', '01', 'ff', 'ff', '93']
+SCtoALL_NRadio = ['80', 'c2', '01', '0a', '00', 'ff', '00', '20', '05', '02', '00', '01', 'ff', 'ff', '93']
 
 # some hardcoded dbus commands for controlling shairport-sync
 osNEXTcmd = "dbus-send --system --print-reply --type=method_call --dest=org.gnome.ShairportSync '/org/gnome/ShairportSync' org.gnome.ShairportSync.RemoteControl.Next"
@@ -57,6 +60,17 @@ osPLAYcmd = "dbus-send --system --print-reply --type=method_call --dest=org.gnom
 
 album = ""
 title = ""
+
+def muteHanlder():
+    global bufferMute
+
+    while True:
+        if bufferMute:
+            os.system("amixer set Digital mute")
+            time.sleep(2.1)
+            os.system("amixer set Digital unmute")
+            bufferMute = False
+        time.sleep(0.2)
 
 def getMetadata():
 
@@ -113,11 +127,11 @@ def radioWake():
     #AMtoBL_Radio[0] = tgSource
     #AMtoBL_Radio[0] = "80"
     print("AM to BL - start radio!")
-    r.publish('link:ml:transmit', ''.join(SCtoAM_NRadio))
+    #r.publish('link:ml:transmit', ''.join(SCtoAM_NRadio))
 
     # when we are in a VM -> AM -> SC setup we also need to send it to VM
-    time.sleep(0.5)
-    r.publish('link:ml:transmit', ''.join(SCtoVM_NRadio))
+    #time.sleep(0.5)
+    r.publish('link:ml:transmit', ''.join(SCtoALL_NRadio))
 
 
 def handleAudio():
@@ -211,6 +225,7 @@ def handleMeta():
 def handleTelegram(tg):
 
     global tgSource
+    global bufferMute
     # we are simulating an AUDIO MASTER at address c1
     # is the telegram for us? If yes, proceed
     print(tg)
@@ -303,10 +318,12 @@ def handleTelegram(tg):
                 if tg[11] == "1e":
                     # NEXT
                     print("NEXT")
+                    bufferMute = True
                     os.system(osNEXTcmd)
                 if tg[11] == "1f":
                     # PREVIOUS
                     print("PREV")
+                    bufferMute = True
                     os.system(osPREVcmd)
             if tg[7] == "11":
                 # RELEASE command usually sent when node is shutting down
@@ -328,6 +345,10 @@ audio_thread.start()
 # once we detect that our system plays an audio stream we are going to send a timer "playback started" command to enable the node.
 meta1_thread = threading.Thread(target=handleMeta)
 meta1_thread.start()
+
+# when changing tracks locally mute the audio output for two seconds to provide an immediate audible feedback while the airplay buffer drains
+mute_thread = threading.Thread(target=muteHanlder)
+mute_thread.start()
 
 # set gpios to output (super ugly, better use libgpiod for portability)
 os.system("raspi-gpio set 23 op")
