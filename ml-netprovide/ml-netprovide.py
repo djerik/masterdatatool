@@ -1,13 +1,3 @@
-#import redis
-#from textwrap import wrap
-#import time
-
-#AMtoSC_reqNM = ['c2', 'c1', '01', '0b', '7a', '00', '00', '6c', '0a', '01', '00', '00', '00', '00', '02', '02', '01', '03', '02', '00', '8a', '00']
-#AMtoSC_reqNM = ['c2', 'c1', '01', '0b', 'a1', '00', '00', '6c', '0a', '01', '00', '00', '00', '00', '02', '02', '01', '03', '02', '00', 'b1', '00']
-#SCtoAM_respNM = ['c1', 'c2', '01', '14', '00', '7a', '00', '6c', '01', '08', '01', '88', '00']
-#SCtoLINK_statusinfo = ['83', 'c2', '01', '14', '00', '7a', '00', '87', '1f', '04', '7a', '01', '00', '00', '1f', 'be', '01', '00', '00', '00', 'ff', '02', '01', '00', '03', '01', '01', '01', '03', '00', '02', '00', '00', '00', '00', '01', '00', '00', '00', '00', '00', 'e5', '00']
-#SCtoAM_trackinfolong = ['c1', 'c2', '01', '14', '00', '00', '00', '82', '0a', '01', '06', '7a', '00', '02', '00', '00', '00', '00', '00', '01', 'a8', '00']
-
 import redis
 from textwrap import wrap
 import time
@@ -35,7 +25,7 @@ signal.signal(signal.SIGINT, exit_handler)
 signal.signal(signal.SIGTERM, exit_handler)
 
 # some pre-defined answers we will later just change the recipient address   
-globalOFF = ['80', 'c2', '01', '0a', '00', '00', '00', '11', '00', '01']
+globalOFF = ['80', '05', '01', '0a', '00', '00', '00', '11', '00', '01']
 
 SCtoAM_respNR = ['c1', 'c2', '01', '14', '00', 'a1', '00', '6c', '01', '08', '01']
 SCtoALL_displSRC01 = ['83', 'c2', '01', '2c', '00', 'a1', '00', '06', '11', '00', '03', '01', '01', '00', '00', '4e', '2e', '52', '41', '44', '49', '4f', '20', '20', '20', '20', '20']
@@ -131,7 +121,7 @@ def radioWake():
 
     # when we are in a VM -> AM -> SC setup we also need to send it to VM
     #time.sleep(0.5)
-    r.publish('link:ml:transmit', ''.join(SCtoALL_NRadio))
+    r.publish('link:ml:transmit', ''.join(SCtoVM_NRadio))
 
 
 def handleAudio():
@@ -162,7 +152,7 @@ def handleAudio():
                     # for this we are sending virtual remote keys
                     # following loop will send 15 "volume_up" commands - volume step size = two
                     # but first we have to wait a bit until the node switched on properly
-                    time.sleep(6)
+                    # time.sleep(6)
 
                     #AMtoBL_volUp[0] = tgSource
                     #for i in range(15):
@@ -172,12 +162,20 @@ def handleAudio():
                         #time.sleep(0.4)
             else:
                 if RUNNING == True:
-                    RUNNING = False
-                    print("CLOSED - global off")
-                    r.publish('link:ml:transmit', ''.join(globalOFF))
-                    # sometimes we need to send it twice to be sure
-                    time.sleep(1)
-                    r.publish('link:ml:transmit', ''.join(globalOFF))
+                    # wait 10 seconds and check again
+                    time.sleep(10)
+                    result = subprocess.run(['cat', '/proc/asound/card0/pcm0p/sub0/status'], capture_output=True, text=True, check=True)
+                    output = result.stdout
+                    if "RUNNING" in output:
+                        # stream running again - don't switch off
+                        print("stream running again")
+                    else:
+                        RUNNING = False
+                        print("CLOSED - global off")
+                        r.publish('link:ml:transmit', ''.join(globalOFF))
+                        # sometimes we need to send it twice to be sure
+                        time.sleep(1)
+                        r.publish('link:ml:transmit', ''.join(globalOFF))
         except subprocess.CalledProcessError as e:
             print(f"Error executing 'cat': {e}")
             return None
