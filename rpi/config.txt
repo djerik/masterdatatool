@@ -1,0 +1,10 @@
+dtparam=i2c_arm=on
+
+[pi4]
+# Run as fast as firmware / board allows
+arm_boost=1
+
+[all]
+dtoverlay=hifiberry-dacplusadcpro,slave
+dtoverlay=gpio-ir,gpio_pin=9
+dtoverlay=gpio-ir-tx,gpio_pin=10,invert=1
