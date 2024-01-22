@@ -97,6 +97,7 @@ def clockOneshot():
     r.publish('link:ml:transmit', ''.join(AMtoBL_respClock))
 
 def syncClock():
+    time.sleep(10)
     # running in a thread
     while True:
         clockOneshot()
