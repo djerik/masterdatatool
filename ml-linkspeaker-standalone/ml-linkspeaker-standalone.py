@@ -150,10 +150,18 @@ def handleAudio():
                         #    time.sleep(0.4)
             else:
                 if RUNNING == True:
-                    RUNNING = False
-                    streamAlreadyRunning = False
-                    print("CLOSED - global off")
-                    r.publish('link:ml:transmit', ''.join(globalOFF))
+                    # wait 10 seconds and check again
+                    time.sleep(10)
+                    result = subprocess.run(['cat', '/proc/asound/card0/pcm0p/sub0/status'], capture_output=True, text=True, check=True)
+                    output = result.stdout
+                    if "RUNNING" in output:
+                        # stream running again - don't switch off
+                        print("stream running again")
+                    else:
+                        RUNNING = False
+                        print("CLOSED - global off")
+                        r.publish('link:ml:transmit', ''.join(globalOFF))
+                        streamAlreadyRunning = False
         except subprocess.CalledProcessError as e:
             print(f"Error executing 'cat': {e}")
             return None
