@@ -117,11 +117,11 @@ def radioWake():
     #AMtoBL_Radio[0] = tgSource
     #AMtoBL_Radio[0] = "80"
     print("AM to BL - start radio!")
-    #r.publish('link:ml:transmit', ''.join(SCtoAM_NRadio))
+    r.publish('link:ml:transmit', ''.join(SCtoAM_NRadio))
 
     # when we are in a VM -> AM -> SC setup we also need to send it to VM
     #time.sleep(0.5)
-    r.publish('link:ml:transmit', ''.join(SCtoVM_NRadio))
+    #r.publish('link:ml:transmit', ''.join(SCtoVM_NRadio))
 
 
 def handleAudio():
