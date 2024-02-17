@@ -42,6 +42,8 @@ SCtoAM_NRadio = ['c1', 'c2', '01', '0a', '00', '00', '00', '20', '05', '02', '00
 SCtoVM_NRadio = ['c0', 'c2', '01', '0a', '00', 'ff', '00', '20', '05', '02', '00', '01', 'ff', 'ff', '93']
 SCtoALL_NRadio = ['80', 'c2', '01', '0a', '00', 'ff', '00', '20', '05', '02', '00', '01', 'ff', 'ff', '93']
 
+SCtoALL_respClock = ['80', 'c2', '01', '14', '00', '00', '00', '40', '0b', '0b', '0a', '00', '03', '11', '52', '59', '00', '23', '12', '23', '0a']
+
 # some hardcoded dbus commands for controlling shairport-sync
 osNEXTcmd = "dbus-send --system --print-reply --type=method_call --dest=org.gnome.ShairportSync '/org/gnome/ShairportSync' org.gnome.ShairportSync.RemoteControl.Next"
 osPREVcmd = "dbus-send --system --print-reply --type=method_call --dest=org.gnome.ShairportSync '/org/gnome/ShairportSync' org.gnome.ShairportSync.RemoteControl.Previous"
@@ -50,6 +52,46 @@ osPLAYcmd = "dbus-send --system --print-reply --type=method_call --dest=org.gnom
 
 album = ""
 title = ""
+
+def clockOneshot():
+    # b13 = hh / b14 = mm / b15 = ss 
+    # b17 = dd / b18 = mm / b19 = yy
+    current_datetime = datetime.now()
+    current_hour = current_datetime.strftime('%H')
+    current_minute = current_datetime.strftime('%M')
+    current_second = current_datetime.strftime('%S')
+    current_day = current_datetime.strftime('%d')
+    current_month = current_datetime.strftime('%m')
+    current_year = current_datetime.strftime('%y')
+
+    SCtoALL_respClock[13] = current_hour
+    SCtoALL_respClock[14] = current_minute
+    SCtoALL_respClock[15] = current_second
+
+    SCtoALL_respClock[17] = current_day
+    SCtoALL_respClock[18] = current_month
+    SCtoALL_respClock[19] = current_year
+
+    print("CLOCK SYNC")
+
+    # send to all devices
+    SCtoALL_respClock[0] = "80"
+    r.publish('link:ml:transmit', ''.join(SCtoALL_respClock))
+
+    time.sleep(1)
+
+    # separately also directly send it to the AM
+    SCtoALL_respClock[0] = "c1"
+    r.publish('link:ml:transmit', ''.join(SCtoALL_respClock))
+
+
+def syncClock():
+    time.sleep(10)
+    # running in a thread
+    while True:
+        clockOneshot()
+        # sync the time every 30 minutes
+        time.sleep(1800)
 
 def muteHanlder():
     global bufferMute
@@ -347,6 +389,10 @@ meta1_thread.start()
 # when changing tracks locally mute the audio output for two seconds to provide an immediate audible feedback while the airplay buffer drains
 mute_thread = threading.Thread(target=muteHanlder)
 mute_thread.start()
+
+# every 30 minutes are going to sync the clock of all connected nodes
+clock_thread = threading.Thread(target=syncClock)
+clock_thread.start()
 
 # set gpios to output (super ugly, better use libgpiod for portability)
 os.system("raspi-gpio set 23 op")
